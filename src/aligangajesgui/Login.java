@@ -5,10 +5,11 @@
  */
 package aligangajesgui;
 
+import config.DbConnect;
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.sql.SQLException;
 import javax.swing.JOptionPane;
 
 /**
@@ -43,6 +44,7 @@ public class Login extends javax.swing.JFrame {
         Lbutton = new javax.swing.JButton();
         Rbutton = new javax.swing.JButton();
         pass = new javax.swing.JPasswordField();
+        jCheckBox1 = new javax.swing.JCheckBox();
 
         setDefaultCloseOperation(javax.swing.WindowConstants.EXIT_ON_CLOSE);
 
@@ -55,9 +57,9 @@ public class Login extends javax.swing.JFrame {
         jLabel1.setBackground(new java.awt.Color(255, 255, 255));
         jLabel1.setFont(new java.awt.Font("Arial Black", 1, 24)); // NOI18N
         jLabel1.setText("Job Application System, Welcome!");
-        jPanel2.add(jLabel1, new org.netbeans.lib.awtextra.AbsoluteConstraints(10, 20, 530, 32));
+        jPanel2.add(jLabel1, new org.netbeans.lib.awtextra.AbsoluteConstraints(220, 20, 530, 32));
 
-        jPanel1.add(jPanel2, new org.netbeans.lib.awtextra.AbsoluteConstraints(0, 0, 540, 70));
+        jPanel1.add(jPanel2, new org.netbeans.lib.awtextra.AbsoluteConstraints(0, 0, 1010, 70));
 
         jPanel3.setBackground(new java.awt.Color(255, 255, 255));
         jPanel3.setLayout(new org.netbeans.lib.awtextra.AbsoluteLayout());
@@ -106,13 +108,22 @@ public class Login extends javax.swing.JFrame {
         });
         jPanel3.add(pass, new org.netbeans.lib.awtextra.AbsoluteConstraints(100, 90, 140, 30));
 
-        jPanel1.add(jPanel3, new org.netbeans.lib.awtextra.AbsoluteConstraints(130, 130, 270, 250));
+        jCheckBox1.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                jCheckBox1ActionPerformed(evt);
+            }
+        });
+        jPanel3.add(jCheckBox1, new org.netbeans.lib.awtextra.AbsoluteConstraints(240, 90, 30, 30));
+
+        jPanel1.add(jPanel3, new org.netbeans.lib.awtextra.AbsoluteConstraints(360, 120, 270, 250));
 
         javax.swing.GroupLayout layout = new javax.swing.GroupLayout(getContentPane());
         getContentPane().setLayout(layout);
         layout.setHorizontalGroup(
             layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-            .addComponent(jPanel1, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+            .addGroup(layout.createSequentialGroup()
+                .addComponent(jPanel1, javax.swing.GroupLayout.PREFERRED_SIZE, 1005, javax.swing.GroupLayout.PREFERRED_SIZE)
+                .addGap(0, 0, Short.MAX_VALUE))
         );
         layout.setVerticalGroup(
             layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
@@ -129,50 +140,64 @@ public class Login extends javax.swing.JFrame {
     }//GEN-LAST:event_userActionPerformed
 
     private void LbuttonActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_LbuttonActionPerformed
- String username = user.getText().trim();
-    String password = new String(pass.getPassword());
+ String usernameInput = user.getText().trim();
+    String passwordInput = new String(pass.getPassword()).trim();
 
-    // Check if fields are empty
-    if (username.isEmpty() || password.isEmpty()) {
-        JOptionPane.showMessageDialog(this, "Username and Password are required!", "Login Error", JOptionPane.ERROR_MESSAGE);
+    if (usernameInput.isEmpty() || passwordInput.isEmpty()) {
+        JOptionPane.showMessageDialog(this, "Username and Password cannot be empty!", "Error", JOptionPane.ERROR_MESSAGE);
         return;
     }
 
-    // Database validation
-    if (validateUser(username, password)) {
-        JOptionPane.showMessageDialog(this, "Login Successful!", "Success", JOptionPane.INFORMATION_MESSAGE);
-        this.setVisible(false); // Hide login form
-        // new Dashboard().setVisible(true); // Open new window if needed
-    } else {
-        JOptionPane.showMessageDialog(this, "Invalid Username or Password!", "Login Error", JOptionPane.ERROR_MESSAGE);
-    }
-    }
-    private boolean validateUser(String username, String password) {
-    boolean isValid = false;
-    try {
-        Connection con = DriverManager.getConnection("jdbc:mysql://localhost:3306/your_database", "root", "password");
-        String query = "SELECT * FROM users WHERE username = ? AND password = ?";
-        PreparedStatement pst = con.prepareStatement(query);
-        pst.setString(1, username);
-        pst.setString(2, password);
+    String sql = "SELECT ps, status, type FROM users WHERE us = ?";
+
+    try (Connection connect = new DbConnect().getConnection(); 
+         PreparedStatement pst = connect.prepareStatement(sql)) {
+        
+        pst.setString(1, usernameInput);
         ResultSet rs = pst.executeQuery();
-        
+
         if (rs.next()) {
-            isValid = true;
+            String dbPassword = rs.getString("ps"); 
+            String status = rs.getString("status");
+            String userType = rs.getString("type"); 
+
+            if (status.equalsIgnoreCase("Pending")) {
+                JOptionPane.showMessageDialog(this, "Your account is pending approval. Please wait for admin approval.", "Access Denied", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+
+            
+            if (passwordInput.equals(dbPassword)) {
+                JOptionPane.showMessageDialog(this, "Login Successful!", "Success", JOptionPane.INFORMATION_MESSAGE);
+
+                switch (userType.toLowerCase()) {
+                    case "admin":
+                    case "supervisor":
+                        new aligangajesgui.AdminDashboard().setVisible(true);
+                        break;
+                    case "client":
+                        new aligangajesgui.UserDashboard().setVisible(true);
+                        break;
+                    default:
+                        JOptionPane.showMessageDialog(this, "Invalid User Type!", "Error", JOptionPane.ERROR_MESSAGE);
+                        return;
+                }
+                this.dispose(); 
+            } else {
+                JOptionPane.showMessageDialog(this, "Invalid Username or Password!", "Error", JOptionPane.ERROR_MESSAGE);
+            }
+        } else {
+            JOptionPane.showMessageDialog(this, "Invalid Username or Password!", "Error", JOptionPane.ERROR_MESSAGE);
         }
-        
-        rs.close();
-        pst.close();
-        con.close();
-    } catch (Exception e) {
-        e.printStackTrace();
-    }
-    return isValid;
+
+    } catch (SQLException ex) {
+        JOptionPane.showMessageDialog(this, "Database Error: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+    }         
 
     }//GEN-LAST:event_LbuttonActionPerformed
 
     private void RbuttonActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_RbuttonActionPerformed
-        this.setVisible(false); // Or you could use this.dispose();
+        this.dispose(); // Or you could use this.dispose();
 
         // Create and show the registration form
         RegistrationForm registrationForm = new RegistrationForm();
@@ -182,6 +207,14 @@ public class Login extends javax.swing.JFrame {
     private void passActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_passActionPerformed
         // TODO add your handling code here:
     }//GEN-LAST:event_passActionPerformed
+
+    private void jCheckBox1ActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jCheckBox1ActionPerformed
+         if (jCheckBox1.isSelected()) {
+        pass.setEchoChar((char) 0); 
+    } else {
+        pass.setEchoChar('*'); 
+    }
+    }//GEN-LAST:event_jCheckBox1ActionPerformed
 
     /**
      * @param args the command line arguments
@@ -221,6 +254,7 @@ public class Login extends javax.swing.JFrame {
     // Variables declaration - do not modify//GEN-BEGIN:variables
     private javax.swing.JButton Lbutton;
     private javax.swing.JButton Rbutton;
+    private javax.swing.JCheckBox jCheckBox1;
     private javax.swing.JLabel jLabel1;
     private javax.swing.JLabel jLabel2;
     private javax.swing.JLabel jLabel3;
